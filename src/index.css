@@ -1,0 +1,19 @@
+.strc-login-container {
+  padding: 2rem;
+  max-width: 400px;
+  width: 100%;
+}
+
+.strc-module-icon {
+  max-width: 160px;
+  width: 100%;
+}
+
+.str-bg-ligth-gray {
+  background-color: #f7f7f7;
+}
+
+.strc-pagination-select {
+  width: 200px;
+  display: inline-block;
+}
