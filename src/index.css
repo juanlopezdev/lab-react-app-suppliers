@@ -1,3 +1,9 @@
+/* Bootstrap Custom */
+.form-control[readonly] {
+  background-color: #f7f7f7;
+}
+
+/* Custom Styles */
 .strc-login-container {
   padding: 2rem;
   max-width: 400px;
