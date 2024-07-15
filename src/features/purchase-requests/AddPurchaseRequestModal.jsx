@@ -6,8 +6,12 @@ import { useForm } from 'react-hook-form';
 import PropTypes from 'prop-types';
 import apiClient from '../../api/apiClient';
 
-const AddPurchaseRequest = ({ show, handleClose, savePurchaseRequest, purchaseRequest, suppliers, approvers}) => {
-  const { register, handleSubmit, watch, formState: { errors }, reset, setValue } = useForm();
+const AddPurchaseRequest = ({ show, handleClose,  suppliers, approvers, savePurchaseRequest, purchaseRequest}) => {
+  const { register, handleSubmit, watch, formState: { errors }, reset, setValue } = useForm({
+    defaultValues: {
+      supplier: suppliers.length > 0 ? suppliers[0].id : null,
+    }
+  });
   const [details, setDetails] = useState([]);
   const [products, setProducts] = useState([]);
   const selectedSupplierId = watch('supplier');
@@ -29,10 +33,12 @@ const AddPurchaseRequest = ({ show, handleClose, savePurchaseRequest, purchaseRe
   }, [purchaseRequest, setValue, reset]);
 
   useEffect(() => {
+    setDetails([]);
+
     const fetchProducts = async () => {
       if (selectedSupplierId) {
         try {
-          const response = await apiClient.get(`products/?supplier_id=${selectedSupplierId}`);
+          const response = await apiClient.get(`products/?supplier=${selectedSupplierId}`);
           setProducts(response.data.results);
         } catch (error) {
           console.error('Error fetching products', error);
@@ -41,11 +47,23 @@ const AddPurchaseRequest = ({ show, handleClose, savePurchaseRequest, purchaseRe
         setProducts([]);
       }
     };
+
     fetchProducts();
   }, [selectedSupplierId]);
 
+  // Calculate total when details change
+  useEffect(() => {
+    const total = calculateTotal();
+    setValue('total', total);
+  }, [details]);
+
   const handleAddDetail = () => {
-    setDetails([...details, { quantity: 1, price_unit: 0, product: products.length > 0 ? products[0].id : null }]);
+    const newDetail = { 
+      product: products.length > 0 ? products[0].id : null,
+      price_unit: products.length > 0 ? products[0].price : 0,
+      quantity: 1
+    };
+    setDetails([...details, newDetail]);
   };
 
   const handleRemoveDetail = (index) => {
@@ -54,12 +72,23 @@ const AddPurchaseRequest = ({ show, handleClose, savePurchaseRequest, purchaseRe
 
   const handleDetailChange = (index, field, value) => {
     const newDetails = [...details];
-    newDetails[index][field] = value;
+    switch (field) {
+      case 'product': updateDetailPriceByProductId(index, value); break;
+      case 'quantity': newDetails[index].quantity = value || 1; break;
+      default: newDetails[index][field] = value; break;
+    }
+    setValue('total', calculateTotal());
     setDetails(newDetails);
   };
 
   const calculateTotal = () => {
     return details.reduce((acc, detail) => acc + (detail.quantity * detail.price_unit), 0);
+  };
+
+  const updateDetailPriceByProductId = (detailIndex, productId) => {
+    const newDetails = [...details];
+    const selectedProduct = products.find((product) => product.id == productId);
+    newDetails[detailIndex].price_unit = selectedProduct ? selectedProduct.price : 0;
   };
 
   const onSubmit = async (data) => {
@@ -91,6 +120,7 @@ const AddPurchaseRequest = ({ show, handleClose, savePurchaseRequest, purchaseRe
             <Form.Control
               type="text"
               placeholder="Total"
+              readOnly={true}
               {...register('total', { required: 'Este campo es requerido' })}
             />
              {errors.total && <div className="text-danger">{errors.total.message}</div>}
@@ -107,12 +137,22 @@ const AddPurchaseRequest = ({ show, handleClose, savePurchaseRequest, purchaseRe
           
           <div>
             <hr className='my-4'/>
+            <h2>Detalle de solicitud</h2>
+            <p>
+              {selectedSupplierId ? 
+                'Agrega productos a tu solicitud' : 
+                'Para agregar un producto, primero debes seleccionar un proveedor'}
+            </p>
+
             {details.map((detail, index) => (
               <div key={index} className="mb-3">
                 <Row>
                   <Form.Group as={Col} md="4">
                     <Form.Label>Producto</Form.Label>
-                    <Form.Select value={detail.product} onChange={(e) => handleDetailChange(index, 'product', e.target.value)}>
+                    <Form.Select 
+                      value={detail.product}
+                      onChange={(e) => handleDetailChange(index, 'product', e.target.value)}
+                    >
                       {products.map((product) => (
                         <option key={product.id} value={product.id}>{product.description}</option>
                       ))}
@@ -123,6 +163,7 @@ const AddPurchaseRequest = ({ show, handleClose, savePurchaseRequest, purchaseRe
                     <Form.Control
                       type="number"
                       value={detail.quantity}
+                      min={1}
                       onChange={(e) => handleDetailChange(index, 'quantity', parseInt(e.target.value, 10))}
                     />
                   </Form.Group>
@@ -131,6 +172,7 @@ const AddPurchaseRequest = ({ show, handleClose, savePurchaseRequest, purchaseRe
                     <Form.Control
                       type="number"
                       value={detail.price_unit}
+                      readOnly={true}
                       onChange={(e) => handleDetailChange(index, 'price_unit', parseFloat(e.target.value))}
                     />
                   </Form.Group>
@@ -142,7 +184,15 @@ const AddPurchaseRequest = ({ show, handleClose, savePurchaseRequest, purchaseRe
                 </Row>
               </div>
             ))}
-            <Button variant="light" onClick={handleAddDetail} className='mb-4'><FontAwesomeIcon icon={faPlus}></FontAwesomeIcon> Añadir producto</Button>
+
+            {selectedSupplierId && (
+              <Button 
+                variant="light" 
+                onClick={handleAddDetail} 
+                className='mb-4'>
+                  <FontAwesomeIcon icon={faPlus}></FontAwesomeIcon> Añadir producto
+              </Button>
+            )}
           </div>
 
           <Button variant="primary" type="submit">
